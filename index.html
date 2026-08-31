@@ -892,12 +892,14 @@
     } else if (!hasConflicts && repairOn) {
       repairCtl.abort(); repairCtl = null; repairOn = false;
     }
+    status();
   }
 
   /* ---- status pill ---- */
   function status() {
     const p = $("status"), t = $("status-t");
-    if (mc) { p.classList.add("live"); t.textContent = "WebMCP connected · " + TOOLS.length + " tools"; }
+    const count = TOOLS.length + (repairOn ? 1 : 0);
+    if (mc) { p.classList.add("live"); t.textContent = "WebMCP connected · " + count + " tools"; }
     else { p.classList.add("bad"); t.textContent = "WebMCP off · use the tool console"; }
   }
 
