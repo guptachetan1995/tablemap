@@ -1,0 +1,1013 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tablemap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --paper:      #F4F6F4;
+    --surface:    #FFFFFF;
+    --surface-2:  #ECEFEC;
+    --line:       #DCE2DE;
+    --line-soft:  #E8EDE9;
+    --ink:        #16201D;
+    --ink-2:      #4A5A55;
+    --ink-3:      #74847E;
+    --accent:     #0F766B;
+    --accent-ink: #FFFFFF;
+    --accent-wash:#E2F0ED;
+    --agent:      #0F766B;
+    --human:      #4A5A55;
+    --crit:       #B03A16;
+    --crit-wash:  #FBEBE4;
+    --warn:       #8A6408;
+    --ok:         #2F6D3C;
+    --shadow:     0 1px 2px rgba(22,32,29,.06), 0 8px 24px -12px rgba(22,32,29,.18);
+    --r:          10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #0E1614;
+      --surface:    #16211E;
+      --surface-2:  #1D2A26;
+      --line:       #26352F;
+      --line-soft:  #1F2C28;
+      --ink:        #E6EDEA;
+      --ink-2:      #9FB0AA;
+      --ink-3:      #74857F;
+      --accent:     #37B3A3;
+      --accent-ink: #06201C;
+      --accent-wash:#12312C;
+      --agent:      #37B3A3;
+      --human:      #9FB0AA;
+      --crit:       #F08A5D;
+      --crit-wash:  #2E1C14;
+      --warn:       #D6A93B;
+      --ok:         #6FC17F;
+      --shadow:     0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:      #0E1614;
+    --surface:    #16211E;
+    --surface-2:  #1D2A26;
+    --line:       #26352F;
+    --line-soft:  #1F2C28;
+    --ink:        #E6EDEA;
+    --ink-2:      #9FB0AA;
+    --ink-3:      #74857F;
+    --accent:     #37B3A3;
+    --accent-ink: #06201C;
+    --accent-wash:#12312C;
+    --agent:      #37B3A3;
+    --human:      #9FB0AA;
+    --crit:       #F08A5D;
+    --crit-wash:  #2E1C14;
+    --warn:       #D6A93B;
+    --ok:         #6FC17F;
+    --shadow:     0 1px 2px rgba(0,0,0,.4), 0 10px 28px -14px rgba(0,0,0,.7);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+  .shell { display: flex; flex-direction: column; min-height: 100vh; }
+
+  /* ---------- header ---------- */
+  header {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .wordmark {
+    font-family: Fraunces, Georgia, serif;
+    font-weight: 600; font-size: 21px; letter-spacing: -.01em;
+    display: flex; align-items: baseline; gap: 9px;
+  }
+  .wordmark span { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--ink-3); font-weight: 400; }
+  .hgap { flex: 1; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .04em;
+    padding: 5px 10px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); flex: none; }
+  .pill.live { border-color: var(--accent); background: var(--accent-wash); color: var(--accent); }
+  .pill.live .dot { background: var(--accent); }
+  .pill.bad .dot { background: var(--crit); }
+
+  .counts { display: flex; gap: 18px; font-family: "IBM Plex Mono", monospace; font-size: 11px; }
+  .counts b { display: block; font-family: "IBM Plex Sans", sans-serif; font-size: 17px;
+    font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .counts i { font-style: normal; color: var(--ink-3); letter-spacing: .1em; text-transform: uppercase; font-size: 9.5px; }
+  .counts .bad b { color: var(--crit); }
+
+  /* ---------- layout ---------- */
+  .main { display: grid; grid-template-columns: 232px minmax(0,1fr) 268px; gap: 0; flex: 1; align-items: stretch; }
+  .rail { border-right: 1px solid var(--line); background: var(--surface); padding: 16px 14px; }
+  .rail.right { border-right: 0; border-left: 1px solid var(--line); }
+  .floor { padding: 20px; min-width: 0; }
+
+  .rail-h {
+    font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--ink-3);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    margin-bottom: 10px;
+  }
+  .rail-h em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+
+  /* ---------- guest chips ---------- */
+  .pool { display: flex; flex-direction: column; gap: 5px; min-height: 60px; }
+  .chip {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 9px; border-radius: 8px; cursor: grab;
+    border: 1px solid var(--line); background: var(--surface-2);
+    text-align: left; width: 100%;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .chip.sel { border-color: var(--accent); background: var(--accent-wash); box-shadow: inset 0 0 0 1px var(--accent); }
+  .chip .nm { font-family: Fraunces, Georgia, serif; font-size: 13.5px; flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip .tg { font-family: "IBM Plex Mono", monospace; font-size: 9.5px; color: var(--ink-3);
+    letter-spacing: .05em; white-space: nowrap; }
+  .chip.flag { border-color: var(--crit); background: var(--crit-wash); }
+  .empty { color: var(--ink-3); font-size: 12.5px; font-style: italic; padding: 8px 2px; }
+
+  .addrow { display: flex; gap: 6px; margin-top: 12px; }
+  input[type=text] {
+    flex: 1; min-width: 0; font: inherit; font-size: 13px;
+    padding: 6px 9px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--paper); color: var(--ink);
+  }
+  input::placeholder { color: var(--ink-3); }
+  .btn {
+    border: 1px solid var(--line); background: var(--surface-2); color: var(--ink);
+    padding: 6px 11px; border-radius: 8px; cursor: pointer; font-size: 13px; white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 500; }
+  .btn.primary:hover { filter: brightness(1.08); color: var(--accent-ink); }
+  .btn.sm { padding: 3px 8px; font-size: 12px; }
+
+  /* ---------- tables ---------- */
+  .floor-h { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .floor-h h2 { font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 16px; margin: 0; }
+  .hint { font-size: 12px; color: var(--ink-3); }
+
+  .tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(238px, 1fr)); gap: 14px; }
+  .table {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+    padding: 13px; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 11px;
+    transition: border-color .18s, box-shadow .18s, transform .18s;
+  }
+  .table.drop { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); }
+  .table.conflict { border-color: var(--crit); }
+  .table.pulse { animation: pulse .9s ease-out; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 var(--accent-wash), var(--shadow); transform: translateY(-1px); }
+    100% { box-shadow: 0 0 0 14px transparent, var(--shadow); transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { .table.pulse { animation: none; } }
+
+  .t-top { display: flex; align-items: center; gap: 10px; }
+  .t-name { font-family: Fraunces, Georgia, serif; font-size: 15.5px; font-weight: 600; flex: 1; }
+  .t-cap { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-3);
+    font-variant-numeric: tabular-nums; }
+  .t-cap.over { color: var(--crit); font-weight: 500; }
+  .ring { flex: none; }
+
+  .seats { display: flex; flex-wrap: wrap; gap: 5px; min-height: 26px; }
+  .seat {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: Fraunces, Georgia, serif; font-size: 13px;
+    padding: 3px 5px 3px 9px; border-radius: 7px; cursor: pointer;
+    border: 1px solid var(--line-soft); background: var(--surface-2);
+  }
+  .seat:hover { border-color: var(--accent); }
+  .seat.sel { border-color: var(--accent); background: var(--accent-wash); }
+  .seat.flag { border-color: var(--crit); background: var(--crit-wash); color: var(--crit); }
+  .seat .x { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--ink-3);
+    padding: 0 3px; border-radius: 4px; line-height: 1; }
+  .seat .x:hover { color: var(--crit); background: var(--crit-wash); }
+  .t-empty { font-size: 12px; color: var(--ink-3); font-style: italic; }
+
+  /* ---------- rules ---------- */
+  .rules { display: flex; flex-direction: column; gap: 6px; }
+  .rule {
+    border: 1px solid var(--line); border-left: 3px solid var(--ok);
+    border-radius: 8px; padding: 7px 9px; background: var(--surface-2);
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .rule.broken { border-left-color: var(--crit); background: var(--crit-wash); }
+  .rule.idle { border-left-color: var(--line); }
+  .rule .r-h { display: flex; align-items: baseline; gap: 6px; }
+  .rule .kind {
+    font-family: "IBM Plex Mono", monospace; font-size: 9.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--ink-3); flex: none;
+  }
+  .rule.broken .kind { color: var(--crit); }
+  .rule .who { font-family: Fraunces, Georgia, serif; font-size: 13px; line-height: 1.35; }
+  .rule .note { font-size: 11.5px; color: var(--ink-3); }
+
+  /* ---------- drawer ---------- */
+  .drawer { border-top: 1px solid var(--line); background: var(--surface); }
+  .tabs { display: flex; gap: 2px; padding: 0 16px; border-bottom: 1px solid var(--line-soft); }
+  .tab {
+    background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer;
+    padding: 9px 11px; font-family: "IBM Plex Mono", monospace; font-size: 10.5px;
+    letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+  .panel { padding: 12px 16px 16px; max-height: 216px; overflow: auto; }
+
+  .log { display: flex; flex-direction: column; gap: 5px;
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; }
+  .log-row { display: grid; grid-template-columns: 58px 62px 1fr; gap: 10px; align-items: baseline; }
+  .log-row .t { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .log-row .who { letter-spacing: .08em; text-transform: uppercase; font-size: 9.5px; }
+  .log-row.agent .who { color: var(--agent); }
+  .log-row.you   .who { color: var(--human); }
+  .log-row .msg { color: var(--ink-2); font-family: "IBM Plex Sans", sans-serif; font-size: 12.5px; }
+
+  .console { display: grid; grid-template-columns: 208px 1fr; gap: 14px; }
+  .tool-list { display: flex; flex-direction: column; gap: 3px; max-height: 178px; overflow: auto; }
+  .tool-b {
+    text-align: left; border: 1px solid transparent; background: none; cursor: pointer;
+    padding: 5px 8px; border-radius: 7px;
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-2);
+  }
+  .tool-b:hover { background: var(--surface-2); }
+  .tool-b.sel { background: var(--accent-wash); color: var(--accent); border-color: var(--accent); }
+  .tool-b small { display: block; font-family: "IBM Plex Sans", sans-serif; font-size: 11px;
+    color: var(--ink-3); margin-top: 1px; }
+  .runner { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+  textarea {
+    font-family: "IBM Plex Mono", monospace; font-size: 12px; line-height: 1.5;
+    padding: 8px 10px; border-radius: 8px; resize: vertical; min-height: 62px;
+    border: 1px solid var(--line); background: var(--paper); color: var(--ink);
+  }
+  .out {
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; white-space: pre-wrap;
+    color: var(--ink-2); background: var(--paper); border: 1px solid var(--line-soft);
+    border-radius: 8px; padding: 8px 10px; max-height: 96px; overflow: auto; margin: 0;
+  }
+  .out.err { color: var(--crit); border-color: var(--crit); background: var(--crit-wash); }
+  .run-bar { display: flex; align-items: center; gap: 9px; }
+  .run-bar .sig { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-3);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .setup { font-size: 12.5px; color: var(--ink-2); line-height: 1.65; }
+  .setup code { font-family: "IBM Plex Mono", monospace; font-size: 11.5px;
+    background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+  .setup ol { margin: 8px 0 0; padding-left: 20px; }
+  .setup li { margin-bottom: 4px; }
+
+  @media (max-width: 980px) {
+    .main { grid-template-columns: 1fr; }
+    .rail, .rail.right { border: 0; border-bottom: 1px solid var(--line); }
+    .console { grid-template-columns: 1fr; }
+  }
+  .site-foot {
+    margin-top: 28px; padding: 14px 0 6px; text-align: center;
+    font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-3);
+    overflow-wrap: anywhere;
+  }
+  .site-foot a { color: var(--ink-3); text-decoration-color: var(--accent); }
+  .site-foot a:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <header>
+    <div class="wordmark">Tablemap <span>seating, with your agent</span></div>
+    <div class="hgap"></div>
+    <div class="counts">
+      <div><b id="c-seated">0</b><i>seated</i></div>
+      <div><b id="c-open">0</b><i>unseated</i></div>
+      <div id="c-conf-w"><b id="c-conf">0</b><i>conflicts</i></div>
+    </div>
+    <div class="pill" id="status"><span class="dot"></span><span id="status-t">checking WebMCP…</span></div>
+  </header>
+
+  <div class="main">
+    <aside class="rail">
+      <div class="rail-h">Not seated <em id="pool-n">0</em></div>
+      <div class="pool" id="pool"></div>
+      <div class="addrow">
+        <input type="text" id="guest-in" placeholder="Add a guest" aria-label="Guest name">
+        <button class="btn" id="guest-add">Add</button>
+      </div>
+    </aside>
+
+    <main class="floor">
+      <div class="floor-h">
+        <h2>Floor plan</h2>
+        <span class="hint" id="hint">Drag a guest onto a table, or click a name then click a table.</span>
+        <div class="hgap"></div>
+        <button class="btn primary" id="auto">Auto-seat everyone</button>
+        <button class="btn" id="clear">Clear seats</button>
+      </div>
+      <div class="tables" id="tables"></div>
+    </main>
+
+    <aside class="rail right">
+      <div class="rail-h">Seating rules <em id="rules-n">0</em></div>
+      <div class="rules" id="rules"></div>
+      <div class="addrow">
+        <input type="text" id="rule-in" placeholder="Ana + Ben  /  Ana - Ben" aria-label="New rule">
+        <button class="btn" id="rule-add">Add</button>
+      </div>
+      <div class="hint" style="margin-top:7px">
+        <code style="font-family:'IBM Plex Mono',monospace">+</code> keeps two people together,
+        <code style="font-family:'IBM Plex Mono',monospace">-</code> keeps them apart.
+      </div>
+    </aside>
+  </div>
+
+  <section class="drawer">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true"  data-p="log">Activity</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="tools">Tool console</button>
+      <button class="tab" role="tab" aria-selected="false" data-p="setup">Run it live</button>
+    </div>
+
+    <div class="panel" id="p-log"><div class="log" id="log"></div></div>
+
+    <div class="panel" id="p-tools" hidden>
+      <div class="console">
+        <div class="tool-list" id="tool-list"></div>
+        <div class="runner">
+          <div class="run-bar">
+            <button class="btn primary sm" id="run">Run tool</button>
+            <span class="sig" id="sig"></span>
+          </div>
+          <textarea id="args" spellcheck="false" aria-label="Tool arguments as JSON"></textarea>
+          <pre class="out" id="out">Pick a tool, edit the arguments, and run it — exactly what an agent does.</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="p-setup" hidden>
+      <div class="setup">
+        These tools are registered with <code>document.modelContext.registerTool()</code>. To let a real
+        agent drive this page:
+        <ol>
+          <li>Open <code>chrome://flags/#enable-webmcp-testing</code> in Chrome 149+, set it to <b>Enabled</b>, and relaunch.</li>
+          <li>Serve this file over HTTP — <code>npx serve .</code> — since WebMCP needs an origin-isolated document and won't run from <code>file://</code>.</li>
+          <li>Install the <b>Model Context Tool Inspector</b> extension, or open the page in ChatGPT's in-app browser, and ask for a seating plan in plain language.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+  <footer class="site-foot">
+    <a href="https://github.com/guptachetan1995/tablemap">guptachetan1995/tablemap</a> on GitHub
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ============================================================
+     1. STATE  —  the app's own data. WebMCP knows nothing about it.
+     ============================================================ */
+  const uid = (p) => p + Math.random().toString(36).slice(2, 8);
+
+  const state = {
+    guests: [], tables: [], rules: [],
+    seating: {},          // guestId -> tableId
+    selected: null,       // guestId
+    focused: null,        // guestId, set by the focus_guest tool
+  };
+
+  function seed() {
+    const G = [
+      ["Priya Raghavan", "family"], ["Arjun Raghavan", "family"], ["Meera Nair", "family"],
+      ["Ravi Menon", "family"], ["Lakshmi Menon", "family"], ["Daniel Osei", "college"],
+      ["Clara Osei", "college"], ["Yusuf Demir", "work"], ["Hana Sato", "work"],
+      ["Tom Whitfield", "work"], ["Bea Whitfield", "work"], ["Nora Kelly", "college"],
+      ["Sam Adeyemi", "college"], ["Ines Duarte", "college"], ["Felix Braun", "work"],
+      ["Grace Okonkwo", "family"], ["Peter Lindqvist", "work"], ["Amara Diallo", "family"],
+    ];
+    state.guests = G.map(([name, tag]) => ({ id: uid("g_"), name, tag }));
+    state.tables = [
+      ["Rosewood", 8], ["Juniper", 6], ["Alder", 6], ["Linden", 6], ["Top Table", 4],
+    ].map(([label, capacity]) => ({ id: uid("t_"), label, capacity }));
+
+    const by = (n) => state.guests.find((g) => g.name === n).id;
+    state.rules = [
+      { id: uid("r_"), type: "together", a: by("Ravi Menon"),   b: by("Lakshmi Menon"), note: "married" },
+      { id: uid("r_"), type: "together", a: by("Daniel Osei"),  b: by("Clara Osei"),    note: "married" },
+      { id: uid("r_"), type: "apart",    a: by("Tom Whitfield"),b: by("Yusuf Demir"),   note: "fell out over the merger" },
+      { id: uid("r_"), type: "apart",    a: by("Nora Kelly"),   b: by("Felix Braun"),   note: "recently split" },
+    ];
+  }
+
+  /* ---- lookups ---- */
+  const guestById  = (id) => state.guests.find((g) => g.id === id);
+  const tableById  = (id) => state.tables.find((t) => t.id === id);
+  const findGuest  = (s) => {
+    if (!s) return null;
+    const q = String(s).trim().toLowerCase();
+    return state.guests.find((g) => g.name.toLowerCase() === q)
+        || state.guests.find((g) => g.name.toLowerCase().startsWith(q))
+        || state.guests.find((g) => g.name.toLowerCase().includes(q)) || null;
+  };
+  const findTable = (s) => {
+    if (!s) return null;
+    const q = String(s).trim().toLowerCase();
+    return state.tables.find((t) => t.label.toLowerCase() === q)
+        || state.tables.find((t) => t.label.toLowerCase().includes(q)) || null;
+  };
+  const occupants = (tid) => state.guests.filter((g) => state.seating[g.id] === tid);
+  const unseated  = () => state.guests.filter((g) => !state.seating[g.id]);
+
+  /* ---- conflicts ---- */
+  function conflicts() {
+    const out = [];
+    for (const r of state.rules) {
+      const ta = state.seating[r.a], tb = state.seating[r.b];
+      if (!ta || !tb) continue;
+      if (r.type === "apart" && ta === tb)
+        out.push({ ruleId: r.id, kind: "apart", detail: guestById(r.a).name + " and " + guestById(r.b).name + " are both at " + tableById(ta).label });
+      if (r.type === "together" && ta !== tb)
+        out.push({ ruleId: r.id, kind: "together", detail: guestById(r.a).name + " is at " + tableById(ta).label + " but " + guestById(r.b).name + " is at " + tableById(tb).label });
+    }
+    for (const t of state.tables) {
+      const n = occupants(t.id).length;
+      if (n > t.capacity)
+        out.push({ tableId: t.id, kind: "overflow", detail: t.label + " has " + n + " guests but seats " + t.capacity });
+    }
+    return out;
+  }
+  const flaggedGuests = () => {
+    const s = new Set();
+    for (const r of state.rules) {
+      const ta = state.seating[r.a], tb = state.seating[r.b];
+      if (!ta || !tb) continue;
+      if ((r.type === "apart" && ta === tb) || (r.type === "together" && ta !== tb)) { s.add(r.a); s.add(r.b); }
+    }
+    return s;
+  };
+
+  /* ============================================================
+     2. MUTATIONS  —  shared by the UI and by the tools.
+     ============================================================ */
+  function seat(guestId, tableId) {
+    state.seating[guestId] = tableId;
+    bump(tableId);
+  }
+  function unseat(guestId) {
+    const prev = state.seating[guestId];
+    delete state.seating[guestId];
+    if (prev) bump(prev);
+  }
+
+  function autoSeat() {
+    state.seating = {};
+    // Union people bound by "together" rules into one party.
+    const party = new Map(state.guests.map((g) => [g.id, g.id]));
+    const root = (x) => { while (party.get(x) !== x) x = party.get(x); return x; };
+    for (const r of state.rules) if (r.type === "together") party.set(root(r.a), root(r.b));
+
+    const groups = new Map();
+    for (const g of state.guests) {
+      const k = root(g.id);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(g.id);
+    }
+    const apart = state.rules.filter((r) => r.type === "apart");
+    const blocked = (ids, tid) => apart.some((r) =>
+      (ids.includes(r.a) && occupants(tid).some((o) => o.id === r.b)) ||
+      (ids.includes(r.b) && occupants(tid).some((o) => o.id === r.a)));
+
+    // Biggest parties first — they are the hardest to place.
+    const order = [...groups.values()].sort((x, y) => y.length - x.length);
+    let placed = 0, spilled = 0;
+    for (const ids of order) {
+      const fits = state.tables
+        .filter((t) => t.capacity - occupants(t.id).length >= ids.length && !blocked(ids, t.id))
+        .sort((x, y) => (y.capacity - occupants(y.id).length) - (x.capacity - occupants(x.id).length));
+      const target = fits[0];
+      if (target) { ids.forEach((id) => { state.seating[id] = target.id; }); placed += ids.length; }
+      else spilled += ids.length;
+    }
+    state.tables.forEach((t) => bump(t.id));
+    return { placed, spilled };
+  }
+
+  /* ============================================================
+     3. RENDER
+     ============================================================ */
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, cls, txt) => { const n = document.createElement(tag); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; };
+  const pulses = new Set();
+  function bump(tid) { pulses.add(tid); }
+
+  function seatRing(filled, cap) {
+    const N = Math.max(cap, filled), R = 12, C = 15, ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("class", "ring"); svg.setAttribute("width", "30"); svg.setAttribute("height", "30");
+    svg.setAttribute("viewBox", "0 0 30 30"); svg.setAttribute("aria-hidden", "true");
+    const hub = document.createElementNS(ns, "circle");
+    hub.setAttribute("cx", C); hub.setAttribute("cy", C); hub.setAttribute("r", "6.5");
+    hub.setAttribute("fill", "none"); hub.setAttribute("stroke", "var(--line)");
+    svg.appendChild(hub);
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+      const d = document.createElementNS(ns, "circle");
+      d.setAttribute("cx", (C + Math.cos(a) * R).toFixed(2));
+      d.setAttribute("cy", (C + Math.sin(a) * R).toFixed(2));
+      d.setAttribute("r", "2.3");
+      const over = i >= cap;
+      d.setAttribute("fill", i < filled ? (over ? "var(--crit)" : "var(--accent)") : "transparent");
+      d.setAttribute("stroke", i < filled ? "none" : "var(--line)");
+      svg.appendChild(d);
+    }
+    return svg;
+  }
+
+  function render() {
+    const flags = flaggedGuests(), conf = conflicts();
+
+    /* header counts */
+    const seatedN = Object.keys(state.seating).length;
+    $("c-seated").textContent = seatedN;
+    $("c-open").textContent   = state.guests.length - seatedN;
+    $("c-conf").textContent   = conf.length;
+    $("c-conf-w").classList.toggle("bad", conf.length > 0);
+
+    /* pool */
+    const pool = $("pool"); pool.replaceChildren();
+    const open = unseated();
+    $("pool-n").textContent = open.length;
+    if (!open.length) pool.appendChild(el("div", "empty", "Everyone has a seat."));
+    open.forEach((g) => {
+      const b = el("button", "chip");
+      if (state.selected === g.id || state.focused === g.id) b.classList.add("sel");
+      b.draggable = true;
+      b.append(el("span", "nm", g.name), el("span", "tg", g.tag));
+      b.onclick = () => { state.selected = state.selected === g.id ? null : g.id; state.focused = null; render(); };
+      b.ondragstart = (e) => { e.dataTransfer.setData("text/plain", g.id); e.dataTransfer.effectAllowed = "move"; };
+      pool.appendChild(b);
+    });
+
+    /* tables */
+    const wrap = $("tables"); wrap.replaceChildren();
+    state.tables.forEach((t) => {
+      const people = occupants(t.id);
+      const over = people.length > t.capacity;
+      const card = el("div", "table");
+      if (over || people.some((p) => flags.has(p.id))) card.classList.add("conflict");
+      if (pulses.has(t.id)) card.classList.add("pulse");
+
+      const top = el("div", "t-top");
+      top.appendChild(seatRing(people.length, t.capacity));
+      top.appendChild(el("div", "t-name", t.label));
+      const cap = el("div", "t-cap" + (over ? " over" : ""), people.length + "/" + t.capacity);
+      top.appendChild(cap);
+      card.appendChild(top);
+
+      const seats = el("div", "seats");
+      if (!people.length) seats.appendChild(el("div", "t-empty", "No one seated yet"));
+      people.forEach((g) => {
+        const s = el("span", "seat");
+        if (flags.has(g.id)) s.classList.add("flag");
+        if (state.selected === g.id || state.focused === g.id) s.classList.add("sel");
+        s.appendChild(el("span", null, g.name));
+        const x = el("span", "x", "×");
+        x.title = "Unseat " + g.name;
+        x.onclick = (e) => { e.stopPropagation(); unseat(g.id); log("you", "Unseated " + g.name); render(); };
+        s.appendChild(x);
+        s.onclick = () => { state.selected = state.selected === g.id ? null : g.id; state.focused = null; render(); };
+        seats.appendChild(s);
+      });
+      card.appendChild(seats);
+
+      const drop = (e) => { e.preventDefault(); card.classList.add("drop"); };
+      card.ondragover = drop; card.ondragenter = drop;
+      card.ondragleave = () => card.classList.remove("drop");
+      card.ondrop = (e) => {
+        e.preventDefault(); card.classList.remove("drop");
+        const gid = e.dataTransfer.getData("text/plain");
+        if (!guestById(gid)) return;
+        seat(gid, t.id); log("you", "Seated " + guestById(gid).name + " at " + t.label); state.selected = null; render();
+      };
+      card.onclick = () => {
+        if (!state.selected) return;
+        const g = guestById(state.selected);
+        seat(g.id, t.id); log("you", "Seated " + g.name + " at " + t.label); state.selected = null; render();
+      };
+      wrap.appendChild(card);
+    });
+    pulses.clear();
+
+    /* rules */
+    const rl = $("rules"); rl.replaceChildren();
+    $("rules-n").textContent = state.rules.length;
+    if (!state.rules.length) rl.appendChild(el("div", "empty", "No rules yet."));
+    state.rules.forEach((r) => {
+      const A = guestById(r.a), B = guestById(r.b);
+      if (!A || !B) return;
+      const broken = conf.some((c) => c.ruleId === r.id);
+      const idle = !state.seating[r.a] || !state.seating[r.b];
+      const d = el("div", "rule" + (broken ? " broken" : idle ? " idle" : ""));
+      const h = el("div", "r-h");
+      h.append(el("span", "kind", r.type === "together" ? "together" : "apart"),
+               el("span", "who", A.name + (r.type === "together" ? " + " : " — ") + B.name));
+      d.appendChild(h);
+      if (r.note) d.appendChild(el("div", "note", r.note));
+      rl.appendChild(d);
+    });
+
+    refreshDynamicTool(conf.length > 0);
+  }
+
+  /* ---- activity log ---- */
+  function log(who, msg) {
+    const row = el("div", "log-row " + who);
+    const now = new Date();
+    row.append(
+      el("span", "t", String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0") + ":" + String(now.getSeconds()).padStart(2, "0")),
+      el("span", "who", who === "agent" ? "agent" : "you"),
+      el("span", "msg", msg));
+    const box = $("log");
+    box.insertBefore(row, box.firstChild);
+    while (box.children.length > 60) box.removeChild(box.lastChild);
+  }
+
+  /* ============================================================
+     4. WEBMCP TOOLS
+     Each tool wraps a function the UI already uses. Same code path,
+     same rendering — the agent is just another way in.
+     ============================================================ */
+  const ok  = (text) => ({ text, ok: true });
+  const err = (text) => { throw new Error(text); };
+
+  const TOOLS = [
+    {
+      name: "list_plan",
+      description: "Read the whole seating plan: every table with its guests and capacity, everyone not yet seated, all seating rules, and any conflicts. Call this first to understand the current state.",
+      inputSchema: { type: "object", properties: {} },
+      annotations: { readOnlyHint: true },
+      execute: () => JSON.stringify({
+        tables: state.tables.map((t) => ({
+          table: t.label, capacity: t.capacity,
+          guests: occupants(t.id).map((g) => g.name),
+        })),
+        unseated: unseated().map((g) => g.name),
+        rules: state.rules.map((r) => ({
+          type: r.type, guests: [guestById(r.a).name, guestById(r.b).name], note: r.note || "",
+        })),
+        conflicts: conflicts().map((c) => c.detail),
+      }, null, 2),
+    },
+    {
+      name: "add_guest",
+      description: "Add a person to the guest list. They start unseated.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Full name of the guest" },
+          tag:  { type: "string", description: "Optional group label, such as family, work, or college" },
+        },
+        required: ["name"],
+      },
+      execute: ({ name, tag }) => {
+        const n = String(name || "").trim();
+        if (!n) err("A guest needs a name.");
+        if (state.guests.some((g) => g.name.toLowerCase() === n.toLowerCase())) err(n + " is already on the guest list.");
+        state.guests.push({ id: uid("g_"), name: n, tag: (tag || "guest").trim() });
+        return ok("Added " + n + " to the guest list, not yet seated.");
+      },
+    },
+    {
+      name: "add_table",
+      description: "Add a table to the floor plan.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          label:    { type: "string", description: "Name of the table, such as Rosewood" },
+          capacity: { type: "number", description: "How many people it seats" },
+        },
+        required: ["label", "capacity"],
+      },
+      execute: ({ label, capacity }) => {
+        const l = String(label || "").trim();
+        const c = Math.round(Number(capacity));
+        if (!l) err("A table needs a name.");
+        if (!(c > 0)) err("Capacity must be a positive number.");
+        if (findTable(l) && findTable(l).label.toLowerCase() === l.toLowerCase()) err("There is already a table called " + l + ".");
+        state.tables.push({ id: uid("t_"), label: l, capacity: c });
+        return ok("Added " + l + ", seating " + c + ".");
+      },
+    },
+    {
+      name: "seat_guest",
+      description: "Seat a guest at a table, moving them if they are already seated elsewhere. Seating someone does not silently fix rule conflicts — check list_plan afterwards.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          guest: { type: "string", description: "Guest name" },
+          table: { type: "string", description: "Table name" },
+        },
+        required: ["guest", "table"],
+      },
+      execute: ({ guest, table }) => {
+        const g = findGuest(guest) || err("No guest called " + guest + ".");
+        const t = findTable(table) || err("No table called " + table + ".");
+        seat(g.id, t.id);
+        const n = occupants(t.id).length;
+        return ok("Seated " + g.name + " at " + t.label + " (" + n + "/" + t.capacity + ")." +
+          (n > t.capacity ? " That table is now over capacity." : ""));
+      },
+    },
+    {
+      name: "unseat_guest",
+      description: "Take a guest out of their seat and return them to the unseated list.",
+      inputSchema: {
+        type: "object",
+        properties: { guest: { type: "string", description: "Guest name" } },
+        required: ["guest"],
+      },
+      execute: ({ guest }) => {
+        const g = findGuest(guest) || err("No guest called " + guest + ".");
+        if (!state.seating[g.id]) return ok(g.name + " was not seated anywhere.");
+        const was = tableById(state.seating[g.id]).label;
+        unseat(g.id);
+        return ok("Took " + g.name + " off " + was + ".");
+      },
+    },
+    {
+      name: "add_rule",
+      description: "Record a seating rule: two people must sit together, or must be kept apart. Rules are checked continuously and shown to the host.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          type:   { type: "string", enum: ["together", "apart"], description: "together or apart" },
+          guest_a:{ type: "string", description: "First guest name" },
+          guest_b:{ type: "string", description: "Second guest name" },
+          note:   { type: "string", description: "Short reason shown to the host, such as 'married'" },
+        },
+        required: ["type", "guest_a", "guest_b"],
+      },
+      execute: ({ type, guest_a, guest_b, note }) => {
+        if (type !== "together" && type !== "apart") err("Rule type must be 'together' or 'apart'.");
+        const A = findGuest(guest_a) || err("No guest called " + guest_a + ".");
+        const B = findGuest(guest_b) || err("No guest called " + guest_b + ".");
+        if (A.id === B.id) err("A rule needs two different people.");
+        state.rules.push({ id: uid("r_"), type, a: A.id, b: B.id, note: (note || "").trim() });
+        return ok("Rule added: keep " + A.name + " and " + B.name + " " + type + ".");
+      },
+    },
+    {
+      name: "auto_seat",
+      description: "Seat everyone from scratch, honouring every 'together' and 'apart' rule and table capacities. Clears the current arrangement first.",
+      inputSchema: { type: "object", properties: {} },
+      execute: () => {
+        const { placed, spilled } = autoSeat();
+        const c = conflicts();
+        return ok("Seated " + placed + " guest" + (placed === 1 ? "" : "s") + " across " + state.tables.length + " tables." +
+          (spilled ? " " + spilled + " could not be placed without breaking a rule." : "") +
+          (c.length ? " " + c.length + " conflict(s) remain." : " No conflicts."));
+      },
+    },
+    {
+      name: "find_conflicts",
+      description: "List every broken seating rule and every over-capacity table right now.",
+      inputSchema: { type: "object", properties: {} },
+      annotations: { readOnlyHint: true },
+      execute: () => {
+        const c = conflicts();
+        return c.length ? c.map((x, i) => (i + 1) + ". " + x.detail).join("\n")
+                        : "No conflicts. Every rule is satisfied and no table is over capacity.";
+      },
+    },
+    {
+      name: "focus_guest",
+      description: "Highlight a guest on the host's screen so they can see who you are talking about. Use this while explaining a change.",
+      inputSchema: {
+        type: "object",
+        properties: { guest: { type: "string", description: "Guest name" } },
+        required: ["guest"],
+      },
+      annotations: { readOnlyHint: true },
+      execute: ({ guest }) => {
+        const g = findGuest(guest) || err("No guest called " + guest + ".");
+        state.focused = g.id; state.selected = null;
+        const where = state.seating[g.id] ? "at " + tableById(state.seating[g.id]).label : "not seated";
+        return ok("Highlighted " + g.name + " (" + where + ").");
+      },
+    },
+  ];
+
+  // Registered only while conflicts exist — this is what fires `toolchange`.
+  const REPAIR = {
+    name: "resolve_conflicts",
+    description: "Re-seat only the guests involved in broken rules, leaving everyone else where they are. Available only while the plan has conflicts.",
+    inputSchema: { type: "object", properties: {} },
+    execute: () => {
+      let moved = 0;
+      for (let pass = 0; pass < 4; pass++) {
+        const c = conflicts();
+        if (!c.length) break;
+        for (const r of state.rules) {
+          const ta = state.seating[r.a], tb = state.seating[r.b];
+          if (!ta || !tb) continue;
+          if (r.type === "together" && ta !== tb) {
+            const t = tableById(ta);
+            if (occupants(ta).length < t.capacity) { seat(r.b, ta); moved++; }
+            else { seat(r.a, tb); moved++; }
+          }
+          if (r.type === "apart" && ta === tb) {
+            const spot = state.tables.find((t) =>
+              t.id !== ta && occupants(t.id).length < t.capacity &&
+              !state.rules.some((o) => o.type === "apart" &&
+                ((o.a === r.b && state.seating[o.b] === t.id) || (o.b === r.b && state.seating[o.a] === t.id))));
+            if (spot) { seat(r.b, spot.id); moved++; }
+          }
+        }
+      }
+      const left = conflicts();
+      return ok("Moved " + moved + " guest" + (moved === 1 ? "" : "s") + ". " +
+        (left.length ? left.length + " conflict(s) still need a human decision." : "All conflicts resolved."));
+    },
+  };
+
+  /* ---- run a tool through one path, whoever called it ---- */
+  function invoke(tool, args, actor) {
+    const raw = tool.execute(args || {});
+    const result = typeof raw === "string" ? raw : raw.text;
+    if (actor === "agent") log("agent", tool.name + " → " + result.split("\n")[0].slice(0, 96));
+    render();
+    return result;
+  }
+
+  /* ---- registration ---- */
+  const mc = (typeof document !== "undefined" && document.modelContext) || null;
+  let repairCtl = null, repairOn = false;
+
+  function registerAll() {
+    if (!mc) return;
+    for (const t of TOOLS) {
+      mc.registerTool({
+        name: t.name, description: t.description, inputSchema: t.inputSchema,
+        annotations: Object.assign({ readOnlyHint: false, untrustedContentHint: false }, t.annotations || {}),
+        execute: async (args) => invoke(t, args, "agent"),
+      });
+    }
+  }
+
+  function refreshDynamicTool(hasConflicts) {
+    if (!mc) return;
+    if (hasConflicts && !repairOn) {
+      repairCtl = new AbortController();
+      mc.registerTool({
+        name: REPAIR.name, description: REPAIR.description, inputSchema: REPAIR.inputSchema,
+        annotations: { readOnlyHint: false, untrustedContentHint: false },
+        execute: async (args) => invoke(REPAIR, args, "agent"),
+      }, { signal: repairCtl.signal });
+      repairOn = true;
+    } else if (!hasConflicts && repairOn) {
+      repairCtl.abort(); repairCtl = null; repairOn = false;
+    }
+  }
+
+  /* ---- status pill ---- */
+  function status() {
+    const p = $("status"), t = $("status-t");
+    if (mc) { p.classList.add("live"); t.textContent = "WebMCP connected · " + TOOLS.length + " tools"; }
+    else { p.classList.add("bad"); t.textContent = "WebMCP off · use the tool console"; }
+  }
+
+  /* ============================================================
+     5. TOOL CONSOLE  —  drive the same tools without an agent.
+     ============================================================ */
+  let picked = TOOLS[0];
+  const sample = (t) => {
+    const props = (t.inputSchema && t.inputSchema.properties) || {};
+    const keys = Object.keys(props);
+    if (!keys.length) return "{}";
+    const o = {};
+    for (const k of keys) {
+      const p = props[k];
+      o[k] = p.enum ? p.enum[0]
+           : p.type === "number" ? 6
+           : k === "guest" || k === "guest_a" ? "Nora Kelly"
+           : k === "guest_b" ? "Felix Braun"
+           : k === "table" ? "Rosewood"
+           : k === "name" ? "Iris Bergman"
+           : k === "label" ? "Willow"
+           : "";
+    }
+    return JSON.stringify(o, null, 2);
+  };
+
+  function buildConsole() {
+    const list = $("tool-list"); list.replaceChildren();
+    const all = TOOLS.concat([REPAIR]);
+    all.forEach((t) => {
+      const b = el("button", "tool-b" + (t === picked ? " sel" : ""));
+      b.appendChild(el("span", null, t.name));
+      b.appendChild(el("small", null, t.description.split(".")[0] + "."));
+      b.onclick = () => { picked = t; $("args").value = sample(t); $("sig").textContent = t.name + "(…)"; buildConsole(); };
+      list.appendChild(b);
+    });
+    $("sig").textContent = picked.name + "(…)";
+  }
+
+  function runPicked() {
+    const out = $("out");
+    out.classList.remove("err");
+    let args;
+    try { args = JSON.parse($("args").value || "{}"); }
+    catch { out.classList.add("err"); out.textContent = "That is not valid JSON. Check the quotes and commas."; return; }
+    try {
+      const res = invoke(picked, args, "agent");
+      out.textContent = res;
+    } catch (e) {
+      out.classList.add("err");
+      out.textContent = "Error: " + e.message;
+      log("agent", picked.name + " → error: " + e.message);
+    }
+  }
+
+  /* ============================================================
+     6. WIRING
+     ============================================================ */
+  document.querySelectorAll(".tab").forEach((tab) => {
+    tab.onclick = () => {
+      document.querySelectorAll(".tab").forEach((o) => {
+        const on = o === tab;
+        o.setAttribute("aria-selected", String(on));
+        $("p-" + o.dataset.p).hidden = !on;
+      });
+    };
+  });
+
+  $("guest-add").onclick = () => {
+    const inp = $("guest-in"), n = inp.value.trim();
+    if (!n) return;
+    try { invoke(TOOLS.find((t) => t.name === "add_guest"), { name: n }, "you"); log("you", "Added " + n); inp.value = ""; }
+    catch (e) { log("you", "Could not add " + n + ": " + e.message); }
+  };
+  $("guest-in").onkeydown = (e) => { if (e.key === "Enter") $("guest-add").click(); };
+
+  $("rule-add").onclick = () => {
+    const inp = $("rule-in"), v = inp.value.trim();
+    const m = v.match(/^(.+?)\s*([+\-])\s*(.+)$/);
+    if (!m) { log("you", "Write a rule as “Ana + Ben” or “Ana - Ben”"); return; }
+    try {
+      invoke(TOOLS.find((t) => t.name === "add_rule"),
+        { type: m[2] === "+" ? "together" : "apart", guest_a: m[1], guest_b: m[3], note: "added by hand" }, "you");
+      log("you", "Added a rule: " + v); inp.value = "";
+    } catch (e) { log("you", "Could not add that rule: " + e.message); }
+  };
+  $("rule-in").onkeydown = (e) => { if (e.key === "Enter") $("rule-add").click(); };
+
+  $("auto").onclick = () => {
+    const r = autoSeat();
+    log("you", "Auto-seated " + r.placed + " guests");
+    render();
+  };
+  $("clear").onclick = () => { state.seating = {}; state.selected = null; log("you", "Cleared every seat"); render(); };
+
+  $("run").onclick = runPicked;
+  document.querySelector(".floor").addEventListener("click", (e) => {
+    if (e.target.closest(".table")) return;
+    if (state.selected) { state.selected = null; render(); }
+  });
+
+  /* ---- boot ---- */
+  seed();
+  registerAll();
+  status();
+  buildConsole();
+  $("args").value = sample(picked);
+  render();
+  log("you", "Opened the plan — " + state.guests.length + " guests, " + state.tables.length + " tables, " + state.rules.length + " rules");
+})();
+</script>
+</body>
+</html>
