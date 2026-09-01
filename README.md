@@ -101,6 +101,27 @@ to be a progressive enhancement over an app that already works.
 Developed against a headless-Chromium Playwright suite that drives the app through the
 same tool entry points an agent uses.
 
+## Demo video script (~2:30)
+
+1. **0:00** — Show the plan: five tables, sixteen unseated guests, five seating rules
+   already in the rail. Drag one guest onto a table by hand. "This is the boring part."
+2. **0:20** — Point at the rules rail — two `together`, two `apart`, one with a note
+   like "fell out over the merger." "These constraints can't be expressed by dragging."
+3. **0:35** — Ask the agent to seat everyone. Cards fill the tables live. Point at the
+   activity log as `list_plan`, `auto_seat` calls land — same UI, same functions.
+4. **1:05** — Seat two guests at the same table, then ask the agent to add an apart
+   rule between them. Conflict count goes red. `resolve_conflicts` appears in the tool
+   list — call out that the tool list itself just changed, and the header count updates
+   live (9 tools → 10).
+5. **1:35** — Ask the agent to fix it. `resolve_conflicts` runs, the conflict clears,
+   and the tool disappears from the list again — it only exists while there's something
+   to repair.
+6. **2:00** — Grab the mouse and override one seat by hand mid-flow, to show the human
+   half never stops working.
+7. **2:15** — Ask "who did you move and why" — the agent uses `focus_guest` and the
+   highlight follows on the host's own screen.
+8. **2:25** — Close on the activity log, agent and human rows interleaved.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
