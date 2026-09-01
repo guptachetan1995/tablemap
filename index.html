@@ -601,7 +601,12 @@
         x.title = "Unseat " + g.name;
         x.onclick = (e) => { e.stopPropagation(); unseat(g.id); log("you", "Unseated " + g.name); render(); };
         s.appendChild(x);
-        s.onclick = () => { state.selected = state.selected === g.id ? null : g.id; state.focused = null; render(); };
+        // A seated guest's chip lives inside its own table card, which has its
+        // own onclick ("seat the selected guest here"). Without stopping the
+        // click here, selecting the chip bubbles straight into that handler
+        // and immediately re-seats the guest at the table they're already
+        // at, clearing the selection before a second click can move them.
+        s.onclick = (e) => { e.stopPropagation(); state.selected = state.selected === g.id ? null : g.id; state.focused = null; render(); };
         seats.appendChild(s);
       });
       card.appendChild(seats);
