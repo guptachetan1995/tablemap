@@ -1022,7 +1022,21 @@
       }, { signal: repairCtl.signal });
       repairOn = true;
     } else if (!hasConflicts && repairOn) {
-      repairCtl.abort(); repairCtl = null; repairOn = false;
+      // Deferred, not synchronous (#87): this branch runs inside render(),
+      // which invoke() calls BEFORE resolve_conflicts' own async execute()
+      // (execute -> safeInvoke -> invoke -> render(), all on execute()'s own
+      // synchronous call stack, no await between them) has unwound back to
+      // Chrome. Aborting repairCtl here — the very signal that in-flight
+      // execute() call was registered under — reads to Chrome's real WebMCP
+      // bridge as the call itself failing, even though the repair and its
+      // return string are already correct. A macrotask (not queueMicrotask —
+      // execute()'s own promise settlement is itself a microtask, so that
+      // would not be late enough) lets the current call stack fully unwind
+      // first. repairOn/repairCtl flip now, synchronously, so status() below
+      // keeps firing immediately as before.
+      const ctl = repairCtl;
+      repairCtl = null; repairOn = false;
+      setTimeout(() => { try { ctl.abort(); } catch (e) { /* never break a queued task */ } }, 0);
     }
     status();
   }
