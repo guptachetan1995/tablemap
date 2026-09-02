@@ -151,6 +151,11 @@
   .chip .tg { font-family: "IBM Plex Mono", monospace; font-size: 9.5px; color: var(--ink-3);
     letter-spacing: .05em; white-space: nowrap; }
   .chip.flag { border-color: var(--crit); background: var(--crit-wash); }
+  .diet {
+    font-family: "IBM Plex Mono", monospace; font-size: 9px; letter-spacing: .04em;
+    padding: 1px 5px; border-radius: 999px; flex: none;
+    border: 1px solid var(--warn); color: var(--warn); background: transparent;
+  }
   .empty { color: var(--ink-3); font-size: 12.5px; font-style: italic; padding: 8px 2px; }
 
   .addrow { display: flex; gap: 6px; margin-top: 12px; }
@@ -295,6 +300,29 @@
   }
   .site-foot a { color: var(--ink-3); text-decoration-color: var(--accent); }
   .site-foot a:hover { color: var(--accent); }
+
+  /* ---------- print: place cards ---------- */
+  /* Unconditional (no theme/media guard) so it is display:none on screen in
+     both light and dark mode — the print rules below only ever apply under
+     @media print, so none of this can leak into screen rendering. */
+  .place-cards { display: none; }
+  @media print {
+    body { background: #fff; }
+    .shell > header, .shell > .main, .shell > .drawer, .shell > .site-foot { display: none; }
+    .place-cards { display: block; background: #fff; color: #000; }
+    .pc-group { break-inside: avoid; margin-bottom: 18px; }
+    .pc-table {
+      font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 14px;
+      border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 8px;
+    }
+    .pc-cards { display: flex; flex-wrap: wrap; gap: 10px; }
+    .pc-card {
+      border: 1px solid #000; border-radius: 4px; padding: 10px 14px;
+      width: 200px; text-align: center; break-inside: avoid;
+    }
+    .pc-name { font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 16px; }
+    .pc-empty { font-family: "IBM Plex Sans", sans-serif; font-size: 13px; }
+  }
 </style>
 </head>
 <body>
@@ -328,6 +356,7 @@
         <div class="hgap"></div>
         <button class="btn primary" id="auto">Auto-seat everyone</button>
         <button class="btn" id="clear">Clear seats</button>
+        <button class="btn" id="print-plan">Print place cards</button>
       </div>
       <div class="tables" id="tables"></div>
     </main>
@@ -384,6 +413,7 @@
   <footer class="site-foot">
     <a href="https://github.com/guptachetan1995/tablemap">guptachetan1995/tablemap</a> on GitHub
   </footer>
+  <div id="place-cards" class="place-cards" aria-hidden="true"></div>
 </div>
 
 <script>
@@ -404,14 +434,14 @@
 
   function seed() {
     const G = [
-      ["Priya Raghavan", "family"], ["Arjun Raghavan", "family"], ["Meera Nair", "family"],
-      ["Ravi Menon", "family"], ["Lakshmi Menon", "family"], ["Daniel Osei", "college"],
-      ["Clara Osei", "college"], ["Yusuf Demir", "work"], ["Hana Sato", "work"],
-      ["Tom Whitfield", "work"], ["Bea Whitfield", "work"], ["Nora Kelly", "college"],
-      ["Sam Adeyemi", "college"], ["Ines Duarte", "college"], ["Felix Braun", "work"],
+      ["Priya Raghavan", "family", "vegetarian"], ["Arjun Raghavan", "family"], ["Meera Nair", "family"],
+      ["Ravi Menon", "family", "allergy: shellfish"], ["Lakshmi Menon", "family"], ["Daniel Osei", "college", "vegan"],
+      ["Clara Osei", "college"], ["Yusuf Demir", "work", "gluten-free"], ["Hana Sato", "work"],
+      ["Tom Whitfield", "work"], ["Bea Whitfield", "work"], ["Nora Kelly", "college", "vegetarian"],
+      ["Sam Adeyemi", "college"], ["Ines Duarte", "college"], ["Felix Braun", "work", "allergy: peanuts"],
       ["Grace Okonkwo", "family"], ["Peter Lindqvist", "work"], ["Amara Diallo", "family"],
     ];
-    state.guests = G.map(([name, tag]) => ({ id: uid("g_"), name, tag }));
+    state.guests = G.map(([name, tag, diet]) => ({ id: uid("g_"), name, tag, ...(diet ? { diet } : {}) }));
     state.tables = [
       ["Rosewood", 8], ["Juniper", 6], ["Alder", 6], ["Linden", 6], ["Top Table", 4],
     ].map(([label, capacity]) => ({ id: uid("t_"), label, capacity }));
@@ -443,6 +473,22 @@
   };
   const occupants = (tid) => state.guests.filter((g) => state.seating[g.id] === tid);
   const unseated  = () => state.guests.filter((g) => !state.seating[g.id]);
+
+  /* ---- CSV export: one row per guest, seated first (grouped by table,
+     seat order = 1-based position within it), then unseated with both
+     fields blank. Standard CSV quoting: quote a field that contains a
+     comma, a quote, or a newline; double any embedded quote. ---- */
+  function csvField(v) {
+    const s = String(v == null ? "" : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function planRows() {
+    const rows = [];
+    for (const t of state.tables)
+      occupants(t.id).forEach((g, i) => rows.push([g.name, t.label, String(i + 1)]));
+    for (const g of unseated()) rows.push([g.name, "", ""]);
+    return rows;
+  }
 
   /* ---- conflicts ---- */
   function conflicts() {
@@ -526,6 +572,22 @@
   const pulses = new Set();
   function bump(tid) { pulses.add(tid); }
 
+  /* ---- dietary marker: compact abbreviation + full-text tooltip ---- */
+  const DIET_ABBR = { vegetarian: "VEG", vegan: "VGN", "gluten-free": "GF" };
+  function dietMarker(diet) {
+    if (!diet) return null;
+    if (diet.startsWith("allergy:"))
+      return { short: "ALG", title: "Allergy: " + diet.slice(8).trim() };
+    return { short: DIET_ABBR[diet] || diet.slice(0, 3).toUpperCase(), title: diet[0].toUpperCase() + diet.slice(1) };
+  }
+  function dietSpan(diet) {
+    const m = dietMarker(diet);
+    if (!m) return null;
+    const s = el("span", "diet", m.short);
+    s.title = m.title;
+    return s;
+  }
+
   function seatRing(filled, cap) {
     const N = Math.max(cap, filled), R = 12, C = 15, ns = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(ns, "svg");
@@ -569,6 +631,8 @@
       if (state.selected === g.id || state.focused === g.id) b.classList.add("sel");
       b.draggable = true;
       b.append(el("span", "nm", g.name), el("span", "tg", g.tag));
+      const dm = dietSpan(g.diet);
+      if (dm) b.appendChild(dm);
       b.onclick = () => { state.selected = state.selected === g.id ? null : g.id; state.focused = null; render(); };
       b.ondragstart = (e) => { e.dataTransfer.setData("text/plain", g.id); e.dataTransfer.effectAllowed = "move"; };
       pool.appendChild(b);
@@ -597,6 +661,8 @@
         if (flags.has(g.id)) s.classList.add("flag");
         if (state.selected === g.id || state.focused === g.id) s.classList.add("sel");
         s.appendChild(el("span", null, g.name));
+        const dm = dietSpan(g.diet);
+        if (dm) s.appendChild(dm);
         const x = el("span", "x", "×");
         x.title = "Unseat " + g.name;
         x.onclick = (e) => { e.stopPropagation(); unseat(g.id); log("you", "Unseated " + g.name); render(); };
@@ -647,7 +713,32 @@
       rl.appendChild(d);
     });
 
+    buildPlaceCards();
     refreshDynamicTool(conf.length > 0);
+  }
+
+  /* ---- print view: place cards for every seated guest, grouped by table.
+     Built from the same state render() always reads, so it can never drift
+     from the screen. The container is display:none outside @media print,
+     so this runs on every render but is invisible on screen. ---- */
+  function buildPlaceCards() {
+    const wrap = $("place-cards");
+    if (!wrap) return;
+    wrap.replaceChildren();
+    const seatedTables = state.tables.filter((t) => occupants(t.id).length > 0);
+    if (!seatedTables.length) { wrap.appendChild(el("div", "pc-empty", "No one is seated yet.")); return; }
+    seatedTables.forEach((t) => {
+      const group = el("div", "pc-group");
+      group.appendChild(el("div", "pc-table", t.label));
+      const cards = el("div", "pc-cards");
+      occupants(t.id).forEach((g) => {
+        const card = el("div", "pc-card");
+        card.appendChild(el("div", "pc-name", g.name));
+        cards.appendChild(card);
+      });
+      group.appendChild(cards);
+      wrap.appendChild(group);
+    });
   }
 
   /* ---- activity log ---- */
@@ -809,6 +900,31 @@
         return c.length ? c.map((x, i) => (i + 1) + ". " + x.detail).join("\n")
                         : "No conflicts. Every rule is satisfied and no table is over capacity.";
       },
+    },
+    {
+      name: "dietary_summary",
+      description: "Read-only, for the caterer: counts guests carrying a dietary tag (vegetarian, vegan, gluten-free, or an allergy) at each table, naming who they are, plus any dietary guest not yet seated. Changes nothing.",
+      inputSchema: { type: "object", properties: {} },
+      annotations: { readOnlyHint: true },
+      execute: () => {
+        const withDiet = state.guests.filter((g) => g.diet);
+        if (!withDiet.length) return "No guests have a dietary tag.";
+        const lines = [];
+        for (const t of state.tables) {
+          const here = occupants(t.id).filter((g) => g.diet);
+          if (here.length) lines.push(t.label + " (" + here.length + "): " + here.map((g) => g.name + " (" + g.diet + ")").join(", "));
+        }
+        const openDiet = withDiet.filter((g) => !state.seating[g.id]);
+        if (openDiet.length) lines.push("Unseated (" + openDiet.length + "): " + openDiet.map((g) => g.name + " (" + g.diet + ")").join(", "));
+        return lines.length ? lines.join("\n") : "No dietary guests are currently seated or waiting.";
+      },
+    },
+    {
+      name: "export_plan",
+      description: "Read-only. Returns the whole seating plan as CSV — header row 'guest,table,seat_order', then one row per guest with their name, the table they're seated at (blank if not yet seated), and their 1-based seat order within that table (blank if not seated). Guest names containing a comma, quote, or newline are CSV-quoted. This string result is the exportable artifact — there is no file download.",
+      inputSchema: { type: "object", properties: {} },
+      annotations: { readOnlyHint: true },
+      execute: () => ["guest,table,seat_order", ...planRows().map((r) => r.map(csvField).join(","))].join("\n"),
     },
     {
       name: "focus_guest",
@@ -1010,6 +1126,7 @@
     render();
   };
   $("clear").onclick = () => { state.seating = {}; state.selected = null; log("you", "Cleared every seat"); render(); };
+  $("print-plan").onclick = () => window.print();
 
   $("run").onclick = runPicked;
   document.querySelector(".floor").addEventListener("click", (e) => {
