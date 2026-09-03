@@ -430,6 +430,7 @@
     seating: {},          // guestId -> tableId
     selected: null,       // guestId
     focused: null,        // guestId, set by the focus_guest tool
+    proposal: null,       // { snapshot: {...seating at propose time}, assign } | null, set by propose_seating
   };
 
   function seed() {
@@ -473,6 +474,7 @@
   };
   const occupants = (tid) => state.guests.filter((g) => state.seating[g.id] === tid);
   const unseated  = () => state.guests.filter((g) => !state.seating[g.id]);
+  const occupantsIn = (seatingMap, tid) => state.guests.filter((g) => seatingMap[g.id] === tid);
 
   /* ---- CSV export: one row per guest, seated first (grouped by table,
      seat order = 1-based position within it), then unseated with both
@@ -491,10 +493,10 @@
   }
 
   /* ---- conflicts ---- */
-  function conflicts() {
+  function conflictsIn(seatingMap) {
     const out = [];
     for (const r of state.rules) {
-      const ta = state.seating[r.a], tb = state.seating[r.b];
+      const ta = seatingMap[r.a], tb = seatingMap[r.b];
       if (!ta || !tb) continue;
       if (r.type === "apart" && ta === tb)
         out.push({ ruleId: r.id, kind: "apart", detail: guestById(r.a).name + " and " + guestById(r.b).name + " are both at " + tableById(ta).label });
@@ -502,12 +504,13 @@
         out.push({ ruleId: r.id, kind: "together", detail: guestById(r.a).name + " is at " + tableById(ta).label + " but " + guestById(r.b).name + " is at " + tableById(tb).label });
     }
     for (const t of state.tables) {
-      const n = occupants(t.id).length;
+      const n = occupantsIn(seatingMap, t.id).length;
       if (n > t.capacity)
         out.push({ tableId: t.id, kind: "overflow", detail: t.label + " has " + n + " guests but seats " + t.capacity });
     }
     return out;
   }
+  function conflicts() { return conflictsIn(state.seating); }
   const flaggedGuests = () => {
     const s = new Set();
     for (const r of state.rules) {
@@ -531,8 +534,11 @@
     if (prev) bump(prev);
   }
 
-  function autoSeat() {
-    state.seating = {};
+  /* ---- solveCore: the actual solver, parameterized on a seating map so it
+     can run against live state.seating (autoSeat) or a local scratch object
+     (propose_seating's preview) without two copies of this logic drifting
+     apart. Mutates seatingMap in place; never touches state.seating itself. ---- */
+  function solveCore(seatingMap) {
     // Union people bound by "together" rules into one party.
     const party = new Map(state.guests.map((g) => [g.id, g.id]));
     const root = (x) => { while (party.get(x) !== x) x = party.get(x); return x; };
@@ -546,22 +552,37 @@
     }
     const apart = state.rules.filter((r) => r.type === "apart");
     const blocked = (ids, tid) => apart.some((r) =>
-      (ids.includes(r.a) && occupants(tid).some((o) => o.id === r.b)) ||
-      (ids.includes(r.b) && occupants(tid).some((o) => o.id === r.a)));
+      (ids.includes(r.a) && occupantsIn(seatingMap, tid).some((o) => o.id === r.b)) ||
+      (ids.includes(r.b) && occupantsIn(seatingMap, tid).some((o) => o.id === r.a)));
 
     // Biggest parties first — they are the hardest to place.
     const order = [...groups.values()].sort((x, y) => y.length - x.length);
     let placed = 0, spilled = 0;
     for (const ids of order) {
       const fits = state.tables
-        .filter((t) => t.capacity - occupants(t.id).length >= ids.length && !blocked(ids, t.id))
-        .sort((x, y) => (y.capacity - occupants(y.id).length) - (x.capacity - occupants(x.id).length));
+        .filter((t) => t.capacity - occupantsIn(seatingMap, t.id).length >= ids.length && !blocked(ids, t.id))
+        .sort((x, y) => (y.capacity - occupantsIn(seatingMap, y.id).length) - (x.capacity - occupantsIn(seatingMap, x.id).length));
       const target = fits[0];
-      if (target) { ids.forEach((id) => { state.seating[id] = target.id; }); placed += ids.length; }
+      if (target) { ids.forEach((id) => { seatingMap[id] = target.id; }); placed += ids.length; }
       else spilled += ids.length;
     }
+    return { placed, spilled };
+  }
+
+  function autoSeat() {
+    state.seating = {};
+    const { placed, spilled } = solveCore(state.seating);
     state.tables.forEach((t) => bump(t.id));
     return { placed, spilled };
+  }
+
+  /* ---- pure preview solve for propose_seating: same solver, a local scratch
+     map instead of state.seating, so nothing changes until apply_seating
+     commits it. ---- */
+  function solveSeating() {
+    const assign = {};
+    solveCore(assign);
+    return assign;
   }
 
   /* ============================================================
@@ -714,7 +735,18 @@
     });
 
     buildPlaceCards();
+
+    // A pending proposal is invalidated the moment live seating drifts from
+    // the snapshot it was computed against — manual drag, seat_guest,
+    // unseat_guest, auto_seat, or the Clear-seats button all funnel through
+    // here via render(), the one place every mutation path (UI and tool)
+    // ends up, so nothing needs to call this explicitly.
+    if (state.proposal && JSON.stringify(state.proposal.snapshot) !== JSON.stringify(state.seating)) {
+      state.proposal = null;
+      log(lastActor, "Pending seating proposal invalidated - the plan changed.");
+    }
     refreshDynamicTool(conf.length > 0);
+    refreshApplyTool(!!state.proposal);
   }
 
   /* ---- print view: place cards for every seated guest, grouped by table.
@@ -742,7 +774,12 @@
   }
 
   /* ---- activity log ---- */
+  let lastActor = "you";     // who most recently acted; used to attribute
+                              // proposal-invalidation narration correctly
+                              // whether the invalidating mutation came from
+                              // a UI handler or an agent's own tool call.
   function log(who, msg) {
+    lastActor = who;
     const row = el("div", "log-row " + who);
     const now = new Date();
     row.append(
@@ -942,6 +979,24 @@
         return ok("Highlighted " + g.name + " (" + where + ").");
       },
     },
+    {
+      name: "propose_seating",
+      description: "Compute a full re-seating from scratch, honouring every rule and table capacity, without changing anything. Returns every guest's current table and the proposed table, plus any rule the proposal still cannot satisfy. Call apply_seating to commit it — that tool exists only while this proposal is pending, and any seating change (a drag, seat_guest, unseat_guest, auto_seat, or Clear seats — by you or the agent) discards it.",
+      inputSchema: { type: "object", properties: {} },
+      execute: () => {
+        const assign = solveSeating();
+        state.proposal = { snapshot: { ...state.seating }, assign };
+        const lines = state.guests.map((g) => {
+          const cur = state.seating[g.id] ? tableById(state.seating[g.id]).label : "unseated";
+          const nxt = assign[g.id] ? tableById(assign[g.id]).label : "unseated";
+          return g.name + ": " + cur + " -> " + nxt;
+        });
+        const unmet = conflictsIn(assign);
+        return ok(lines.join("\n") + (unmet.length
+          ? "\n\nStill unsatisfiable:\n" + unmet.map((c) => "- " + c.detail).join("\n")
+          : "\n\nAll rules satisfied."));
+      },
+    },
   ];
 
   // Registered only while conflicts exist — this is what fires `toolchange`.
@@ -977,10 +1032,36 @@
     },
   };
 
+  // Registered only while a proposal is pending — the propose/apply
+  // counterpart to REPAIR above. Applies the STORED proposal exactly, no
+  // re-solve, and only touches guests whose table actually changes so an
+  // unchanged guest never spuriously un-seats and re-seats.
+  const APPLY = {
+    name: "apply_seating",
+    description: "Apply the pending seating proposal exactly as computed by propose_seating — no re-solving. Available only while a proposal is pending; any seating change since the proposal was made removes this tool.",
+    inputSchema: { type: "object", properties: {} },
+    execute: () => {
+      if (!state.proposal) err("No seating proposal is pending. Call propose_seating first.");
+      const { assign } = state.proposal;
+      const before = { ...state.seating };
+      for (const id of Object.keys(before)) if (assign[id] !== before[id]) unseat(id);
+      for (const id of Object.keys(assign)) if (assign[id] !== before[id]) seat(id, assign[id]);
+      // Union of both maps' keys, not just assign's — a guest seated before
+      // but spilled (unplaced) by the new solve has no key in assign at all,
+      // yet was genuinely moved (to unseated).
+      const changedIds = new Set([...Object.keys(before), ...Object.keys(assign)]);
+      const moved = [...changedIds].filter((id) => assign[id] !== before[id]).length;
+      state.proposal = null;
+      return ok("Applied the seating proposal: " + moved + " guest" + (moved === 1 ? "" : "s") +
+        " moved, " + Object.keys(assign).length + " guest" + (Object.keys(assign).length === 1 ? "" : "s") + " seated in total.");
+    },
+  };
+
   /* ---- run a tool through one path, whoever called it ---- */
   function invoke(tool, args, actor) {
     const raw = tool.execute(args || {});
     const result = typeof raw === "string" ? raw : raw.text;
+    lastActor = actor;
     if (actor === "agent") log("agent", tool.name + " → " + result.split("\n")[0].slice(0, 96));
     render();
     return result;
@@ -1041,10 +1122,52 @@
     status();
   }
 
+  // apply_seating's dynamic registration — same deferred-abort shape as
+  // refreshDynamicTool above (#87), PLUS a stale-controller drain on arm
+  // (#91's fix, needed for the same reason it was needed there: a fast
+  // propose -> invalidate -> re-propose cycle can re-arm before a prior
+  // disarm's deferred abort has fired, and that stale abort landing after
+  // the fresh registerTool() call would delete the live one, not the dead
+  // one — Chrome's registry (and this repo's own mocked-bridge test) key
+  // unregistration by tool NAME, not by which AbortController fired it).
+  let applyCtl = null, applyOn = false, applyStaleCtl = null, applyStaleTimer = null;
+
+  function drainStaleApply() {
+    if (applyStaleTimer) { clearTimeout(applyStaleTimer); applyStaleTimer = null; }
+    if (applyStaleCtl) {
+      const c = applyStaleCtl; applyStaleCtl = null;
+      try { c.abort(); } catch (e) { /* already gone */ }
+    }
+  }
+
+  function refreshApplyTool(hasProposal) {
+    if (!mc) return;
+    if (hasProposal && !applyOn) {
+      drainStaleApply();
+      applyCtl = new AbortController();
+      mc.registerTool({
+        name: APPLY.name, description: APPLY.description, inputSchema: APPLY.inputSchema,
+        annotations: { readOnlyHint: false, untrustedContentHint: false },
+        execute: async (args) => safeInvoke(APPLY, args, "agent"),
+      }, { signal: applyCtl.signal });
+      applyOn = true;
+    } else if (!hasProposal && applyOn) {
+      const ctl = applyCtl;
+      applyCtl = null; applyOn = false;
+      applyStaleCtl = ctl;
+      applyStaleTimer = setTimeout(() => {
+        applyStaleTimer = null;
+        const c = applyStaleCtl; applyStaleCtl = null;
+        try { c.abort(); } catch (e) { /* never break a queued task */ }
+      }, 0);
+    }
+    status();
+  }
+
   /* ---- status pill ---- */
   function status() {
     const p = $("status"), t = $("status-t");
-    const count = TOOLS.length + (repairOn ? 1 : 0);
+    const count = TOOLS.length + (repairOn ? 1 : 0) + (applyOn ? 1 : 0);
     if (mc) { p.classList.add("live"); t.textContent = "WebMCP connected · " + count + " tools"; }
     else { p.classList.add("bad"); t.textContent = "WebMCP off · use the tool console"; }
   }
@@ -1074,7 +1197,7 @@
 
   function buildConsole() {
     const list = $("tool-list"); list.replaceChildren();
-    const all = TOOLS.concat([REPAIR]);
+    const all = TOOLS.concat([REPAIR, APPLY]);
     all.forEach((t) => {
       const b = el("button", "tool-b" + (t === picked ? " sel" : ""));
       b.appendChild(el("span", null, t.name));
